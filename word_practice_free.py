@@ -2,6 +2,7 @@ import re
 import os
 import requests
 import time
+from urllib.parse import quote
 from colorama import Fore, Style, init
 
 # Initialize colorama to work with ANSI escape sequences on Windows
@@ -18,23 +19,29 @@ def get_word_input():
         else:
             print(Fore.RED + "\nInvalid input. Please use only lowercase letters and spaces.")
 
-def get_word_definition(word):
-    url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
-    response = requests.get(url)
-    data = response.json()
-    if isinstance(data, list):
-        if len(data) > 0 and 'meanings' in data[0]:
-            return data[0]['meanings'][0]['definitions'][0]['definition']
-    return None
+def get_word_details(word):
+    url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{quote(word)}"
 
-def get_word_phonetics(word):
-    url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
-    response = requests.get(url)
-    data = response.json()
-    if isinstance(data, list):
-        if len(data) > 0 and 'phonetics' in data[0]:
-            return data[0]['phonetics']
-    return []
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None, []
+
+    if not isinstance(data, list) or not data:
+        return None, []
+
+    entry = data[0]
+    phonetics = entry.get("phonetics", [])
+
+    for meaning in entry.get("meanings", []):
+        for item in meaning.get("definitions", []):
+            definition = item.get("definition")
+            if definition:
+                return definition, phonetics
+
+    return None, phonetics
 
 
 def play_game(word, level, total_coins, definition, phonetics):
@@ -104,14 +111,13 @@ def play_game(word, level, total_coins, definition, phonetics):
 def main():
     while True:
         word = get_word_input()
-        definition = get_word_definition(word)
-        phonetics = get_word_phonetics(word)
+        definition, phonetics = get_word_details(word)
 
-        if len(word) <= 3 or definition is None or not phonetics: # Check for phonetics as well
+        if len(word) <= 3 or definition is None:
             if len(word) <= 3:
                 print(Fore.RED + "\nPlease enter a word with more than 3 letters.")
             else:
-                print(Fore.RED + "\nDefinition not found. Please enter another word.")
+                print(Fore.RED + "\nDefinition not found or the dictionary service is unavailable. Please try another word.")
             input("\nPress Enter to continue...")
             clear_screen()
         else:
