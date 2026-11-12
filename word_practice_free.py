@@ -19,6 +19,28 @@ def get_word_input():
         else:
             print(Fore.RED + "\nInvalid input. Please use only lowercase letters and spaces.")
 
+def get_datamuse_definition(word):
+    try:
+        response = requests.get(
+            "https://api.datamuse.com/words",
+            params={"sp": word, "md": "d", "max": 1},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    if not isinstance(data, list) or not data:
+        return None
+
+    definitions = data[0].get("defs", [])
+    if not definitions:
+        return None
+
+    return definitions[0].split("\t", 1)[-1].strip()
+
+
 def get_word_details(word):
     url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{quote(word)}"
 
@@ -27,10 +49,10 @@ def get_word_details(word):
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError):
-        return None, []
+        return get_datamuse_definition(word), []
 
     if not isinstance(data, list) or not data:
-        return None, []
+        return get_datamuse_definition(word), []
 
     entry = data[0]
     phonetics = entry.get("phonetics", [])
@@ -41,7 +63,7 @@ def get_word_details(word):
             if definition:
                 return definition, phonetics
 
-    return None, phonetics
+    return get_datamuse_definition(word), []
 
 
 def play_game(word, level, total_coins, definition, phonetics):
